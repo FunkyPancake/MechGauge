@@ -6,7 +6,7 @@
 **     Component   : PE_Const
 **     Version     : Driver 01.01
 **     Compiler    : CodeWarrior HCS12Z C Compiler
-**     Date/Time   : 2019-12-15, 03:17, # CodeGen: 1
+**     Date/Time   : 2020-05-26, 17:51, # CodeGen: 24
 **     Abstract    :
 **         This component "PE_Const" contains internal definitions
 **         of the constants.

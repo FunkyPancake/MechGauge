@@ -7,7 +7,7 @@
 **     Version     : Component 01.065, Driver 02.08, CPU db: 3.00.000
 **     Datasheet   : Rev. 1.01 11/2013
 **     Compiler    : CodeWarrior HCS12Z C Compiler
-**     Date/Time   : 2019-12-30, 02:19, # CodeGen: 22
+**     Date/Time   : 2020-05-26, 17:51, # CodeGen: 24
 **     Abstract    :
 **         This component "MC9S12ZVH128_100" implements properties, methods,
 **         and events of the CPU.
@@ -70,6 +70,7 @@
 #include "IEE1.h"
 #include "Vrti.h"
 #include "Vtim0ch0.h"
+#include "Vssd0.h"
 #include "Events.h"
 #include "Cpu.h"
 
@@ -261,6 +262,8 @@ void PE_low_level_init(void)
   #endif
   /* Int. priority initialization */
   /*                                        No. Address Pri XGATE Name                 Description */
+  setReg8(INT_CFADDR, 0x18U);           
+  setReg8(INT_CFDATA5, 0x04U);         /*  0x1D  0x00FFFE74   4   no   ivVssd0              used by PE */ 
   setReg8(INT_CFADDR, 0x58U);           
   setReg8(INT_CFDATA0, 0x04U);         /*  0x58  0x00FFFF60   4   no   ivVflash             used by PE */ 
   setReg8(INT_CFADDR, 0x70U);           

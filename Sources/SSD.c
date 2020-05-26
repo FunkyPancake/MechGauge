@@ -9,6 +9,7 @@
 #include "IO_Map.h"
 #include "MC.h"
 #include "PE_Types.h"
+#include "Vssd0.h"
 /******************************************************************************
 * External objects
 ******************************************************************************/
@@ -33,20 +34,14 @@ typedef struct
 	uint16_t u16_integration_time; /* Specifies integration duration.                   */
 	int16_t i16_integrated_value;  /* Stores back EMF integrated value.                 */
 	int16_t i16_stall_level;	   /* Stores the stall threshold level.                 */
-	int16_t i16_step_position;	 /* Tracks step position.                             */
+	int16_t i16_step_position;	   /* Tracks step position.                             */
 	int16_t i16_last_stall;		   /* Stores the last detected stall value.             */
 } TypeSSD;
 
 /******************************************************************************
-* Local function prototypes
-******************************************************************************/
-void SSD0_ISR(void);
-void SSD1_ISR(void);
-
-/******************************************************************************
 * Local variables
 ******************************************************************************/
-TypeSSD SSD[3];
+TypeSSD SSD[MAX_MOTOR_NUM];
 
 /******************************************************************************
 * Global functions
@@ -56,16 +51,7 @@ void SSD_Init(void)
 {
 	uint8_t i = 0;
 
-	SSD[2].i8_SSD_stage = 0;
-	SSD[2].u16_integration_time = 1000;
-	SSD[2].i16_stall_level = 250;
-	SSD[2].u16_blanking_count = 150;
-	SSD[2].i8_step_state = 0;
-	SSD[2].i8_clockwise = 0; //All RTZ CCW
-	SSD[2].i16_step_position = 0;
-	SSD[2].u8_SSD_on = 1;
-
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < MAX_MOTOR_NUM; i++)
 	{
 		SSD[i].i8_SSD_stage = 0;
 		SSD[i].u16_integration_time = 1000;
@@ -76,7 +62,6 @@ void SSD_Init(void)
 		SSD[i].i16_step_position = 0;
 		SSD[i].u8_SSD_on = 1;
 	}
-	//SSD[3].i8_clockwise        = 1;			//Motor 3 RTZ CW
 
 	/*Motor 0*/
 	SSD0FLG_MCZIF = 1; //Clear modulus counter unterflow flag
@@ -85,33 +70,9 @@ void SSD_Init(void)
 	SSD0FLG_AOVIF = 0; //Clear Accumulator overflow interrupt flag
 	MDC0CTL_MCEN = 1;  //Modulus down counter enable
 	MDC0CNT = 31000;
-
-	/*Motor 1*/
-	SSD1FLG_MCZIF = 1; //Clear modulus counter unterflow flag
-	MDC1CTL_MCZIE = 1; //Enable modulus counter underflow interrupt
-	MDC1CTL_MODMC = 0; //Modulus counter counts down to zero and stops
-	SSD1FLG_AOVIF = 0; //Clear Accumulator overflow interrupt flag
-	MDC1CTL_MCEN = 1;  //Modulus down counter enable
-	MDC1CNT = 27000;
-
-	// /*Motor 2*/
-	// SSD2FLG_MCZIF = 1; //Clear modulus counter unterflow flag
-	// MDC2CTL_MCZIE = 1; //Enable modulus counter underflow interrupt
-	// MDC2CTL_MODMC = 0; //Modulus counter counts down to zero and stops
-	// SSD2FLG_AOVIF = 0; //Clear Accumulator overflow interrupt flag
-	// MDC2CTL_MCEN = 1;  //Modulus down counter enable
-	// MDC2CNT = 13000;
-
-	// /*Motor 3*/
-	// SSD3FLG_MCZIF = 1; //Clear modulus counter unterflow flag
-	// MDC3CTL_MCZIE = 1; //Enable modulus counter underflow interrupt
-	// MDC3CTL_MODMC = 0; //Modulus counter counts down to zero and stops
-	// SSD3FLG_AOVIF = 0; //Clear Accumulator overflow interrupt flag
-	// MDC3CTL_MCEN = 1;  //Modulus down counter enable
-	// MDC3CNT = 3000;
 }
-
-interrupt VectorNumber_Vssd0 void SSD0_ISR()
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+ISR(SSD0Isr)
 {
 
 	uint8_t M0_Int_Loop_Active = 1;
@@ -262,155 +223,4 @@ interrupt VectorNumber_Vssd0 void SSD0_ISR()
 		}
 	}
 }
-
-interrupt VectorNumber_Vssd1 void SSD1_ISR()
-{
-
-	uint8_t M1_Int_Loop_Active = 1;
-
-	/* Disable SSDx interrupt */
-	MDC1CTL_MCZIE = 0;
-
-	while (M1_Int_Loop_Active)
-	{
-		/* STOP SSD */
-		if (SSD[1].u8_SSD_on == 0)
-		{
-			MDC1CTL_MCEN = 0;		 /* Disable modulus down-counter.              */
-			RTZ1CTL_ITG = 0;		 /* Ensure integration disabled.               */
-			RTZ1CTL_DCOIL = 0;		 /* Ensure Dcoils disabled.                    */
-			RTZ1CTL_RCIR = 0;		 /* Disable recirculation.                     */
-			SSD1CTL_SDCPU = 0;		 /* Power down the SSD sigma delta converter.  */
-			SSD1CTL_RTZE = 0;		 /* Disable the SSD module. This also releases */
-									 /* control of the associated port pins.       */
-			SSD[1].i8_SSD_stage = 0; /* Set the stage var to 0.                    */
-			return;					 /* Exit SSDx interrupt routine.               */
-		}
-
-		/* Since this CPU interrupt function may need a few requests in        */
-		/* order to complete the process of performing a step with integration */
-		/* and detecting a stall, the process is divided into stages.          */
-		if (SSD[1].i8_SSD_stage == 0)
-		{
-			/***************INIT THE SDD MODULE SETTINGS**************/
-			RTZ1CTL_RCIR = 0;		 /* Set recirculation to occur on low-side.                */
-			RTZ1CTL_POL = 0;		 /* Set polarity.                                          */
-			MDC1CTL_PRE = 0;		 /* Clear or set the SSD prescaler as desired              */
-			SSD1CTL_ACLKS = 0;		 /* Setup SSD accumulator sample frequency. Recommended    */
-									 /* sample frequencies are between 500Khz and 2Mhz.        */
-			SSD1CTL_RTZE = 1;		 /* Enable SSD module. This also transfers control of the  */
-									 /* associated port pins to the SSD module.                */
-			SSD1CTL_SDCPU = 1;		 /* Power up the SSD sigma delta converter.                */
-			SSD[1].i8_SSD_stage = 1; /* Since init complete, proceed to the next stage,        */
-									 /* which is blanking/integration of the SSD step.         */
-		}
-
-		if (SSD[1].i8_SSD_stage == 1)
-		{
-			RTZ1CTL_STEP = SSD[1].i8_step_state; /* Write step state before performing a step. */
-			SSD[1].i8_SSD_stage = 2;			 /* Set the next stage.                        */
-
-			/******************IF BLANKING IS USED********************/
-			/* In some cases, an application may work even when blanking is s*/
-			/* not used. To skip blanking and go straight to integration,   */
-			/* set the variable u16_blanking_count to 0.                        */
-			if (SSD[1].u16_blanking_count > 0)
-			{
-				/*******************BEGIN TAKING A STEP***************************************/
-				SSD1FLG_MCZIF = 1;					 /* Clear the modulus down counter zero flag.            */
-				RTZ1CTL_ITG = 0;					 /* Ensure integration disabled before blanking.         */
-				MDC1CTL_MCZIE = 1;					 /* Enable zero flag interrupt. When triggered, blanking */
-													 /* is complete and the request proceeds to integration. */
-				MDC1CTL_MODMC = 0;					 /* Set the modulus mode to 0.                           */
-				MDC1CTL_MCEN = 1;					 /* Enable modulus down-counter.                         */
-				MDC1CNT = SSD[1].u16_blanking_count; /* Load the blanking count.            */
-				RTZ1CTL_DCOIL = 1;					 /* Turn on the SSD channel coil drivers.                */
-				return;								 /* Exit SSDx interrupt routine.                         */
-			}
-		}
-
-		if (SSD[1].i8_SSD_stage == 2)
-		{
-			/********************START INTEGRATION***********************/
-			SSD1FLG_MCZIF = 1;					   /* Clear modulus down counter zero flag.                    */
-			MDC1CTL_MCZIE = 1;					   /* Enable interrupts for zero flag.                         */
-			MDC1CTL_MODMC = 0;					   /* Set mode to 0 to count down and stop at zero.            */
-			SSD1FLG_AOVIF = 1;					   /* Clear the accumulator overflow flag.                     */
-			MDC1CTL_MCEN = 1;					   /* Enable modulus counter. Count value is loaded next.      */
-			MDC1CNT = SSD[1].u16_integration_time; /* Load the integration count.                 */
-
-			/* NOTE: If integration is enabled before the modulus counter is set up,       */
-			/* the SSD module may not perform offset cancelation. This increases           */
-			/* the possibility of large offset errors corrupting the integration value.    */
-			/* It is recommended to enable integration AFTER the modulus counter has       */
-			/* been setup and enabled.                                                     */
-
-			RTZ1CTL_ITG = 1;		 /* Begin integration.                                     */
-			RTZ1CTL_DCOIL = 1;		 /* Turn on the SSD channel coil drivers.                  */
-			SSD[1].i8_SSD_stage = 3; /* Set next stage to evaluate integration result.         */
-			return;					 /* Exit interrupt. Integration complete at next request.  */
-		}
-
-		if (SSD[1].i8_SSD_stage == 3)
-		{
-			/*************READ ITGACC & DISABLE INTEGRATION**************/
-			SSD[1].i16_integrated_value = ITG1ACC; /* Immediately get the integration result                */
-			RTZ1CTL_ITG = 0;					   /* Accumulator still active. Clear ITG to disable.                     */
-			SSD1FLG_MCZIF = 1;					   /* Clear MCZIF flag.                                                   */
-			RTZ1CTL_DCOIL = 0;					   /* Disable Dcoil. To leave Dcoil enabled, comment out this instruction.*/
-			MDC1CTL_MCEN = 0;					   /*  Disable modulus down-counter.                                      */
-
-			/* NOW THAT INTEGRATION HAS COMPLETED, EVALUATE THE RESULT  */
-			/************1ST, CHECK FOR ACCUMULATOR OVERFLOW*************/
-			if (SSD1FLG_AOVIF == 1)
-			{
-				/* If an overlow occurs, the routine must determine what to do.    */
-				/* In this instance, the routine flags a variable for SSDx disable.*/
-				SSD[1].i8_result = 2; /* Overflow detected. Write result variable.      */
-				SSD[1].u8_SSD_on = 0; /* Disable the SSDx module                        */
-			}
-			/*********CHECK IF INTEGRATION VALUE IN STALL RANGE**********/
-			else if (((SSD[1].i16_integrated_value <= SSD[1].i16_stall_level) && (SSD[1].i16_integrated_value >= 0)) ||
-					 ((SSD[1].i16_integrated_value >= (-SSD[1].i16_stall_level)) && (SSD[1].i16_integrated_value <= 0)))
-			{
-				SSD[1].i8_result = 1;								 /* Write result code to indicate stall detected.          */
-				SSD[1].i16_last_stall = SSD[1].i16_integrated_value; /* Save integration stall value   */
-				/*******SINCE STALL DETECTED, REVERSE MOTOR DIRECTION*******/
-				All_Motors_Stalled |= 2; /* Register Motor Stall to module interface */
-				Motor[1].rtz = 1;
-
-				/* Disable RTZ */
-				SSD1CTL_RTZE = 0;
-				return; /* Exit interrupt routine. */
-			}
-			else
-			{
-				SSD[1].i8_result = 0; /* No stall detected. Write result code. */
-				/******************MOVE TO NEXT STEP STATE******************/
-				if (SSD[1].i8_clockwise)
-				{
-					SSD[1].i16_step_position++;
-					SSD[1].i8_step_state++; /* Update to rotate(CCW) through future steps. Direction */
-											/* dependent upon MCU pin connections to the motor.      */
-					if (SSD[1].i8_step_state > 3)
-						SSD[1].i8_step_state = 0;
-				}
-				else
-				{
-					SSD[1].i16_step_position--;
-					SSD[1].i8_step_state--; /* Update to rotate(CCW) through future steps. Direction */
-											/* dependent upon MCU pin connections to the motor.      */
-					if (SSD[1].i8_step_state < 0)
-					{
-						SSD[1].i8_step_state = 3;
-					}
-				}
-				SSD[1].i8_SSD_stage = 1; /* Set stage for blanking/intgrtn. Routine does not exit.*/
-			}
-		}
-		else
-		{
-			SSD[1].u8_SSD_on = 0; /* Stage was an unexpected value, flag SSDx for disable. */
-		}
-	}
-}
+#pragma CODE_SEG DEFAULT

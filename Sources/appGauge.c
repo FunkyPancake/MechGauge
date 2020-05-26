@@ -5,7 +5,7 @@
 #include "PWM_WL.h"
 #include "MC.h"
 
-volatile static uint16_t signalValue = 0;
+volatile uint16_t signalValue = 0;
 
 void CalDataLoad(CalData_t *cal)
 {
@@ -14,8 +14,9 @@ void CalDataLoad(CalData_t *cal)
     for (idx = 0; idx < sizeof(CalData_t); idx++)
     {
         IEE1_GetByte(IEE1_AREA_START + idx, &dataByte);
-        *(byte *)(cal + idx) = dataByte;
+        *((byte *)cal + idx) = dataByte;
     }
+#ifdef DEBUG
     cal->id = 0x6a;
     cal->speed = 2;
     cal->bitmask[0] = 0x0f;
@@ -26,6 +27,8 @@ void CalDataLoad(CalData_t *cal)
     cal->warning_threshold = 100;
     cal->warning_brightness = 100;
     cal->backlight_brightness = 100;
+
+#endif
 }
 
 void CalDataStore(CalData_t *cal, uint8_t update)
@@ -47,7 +50,7 @@ void CalDataStore(CalData_t *cal, uint8_t update)
         {
             if (!IEE1_Busy())
             {
-                dataByte = *(byte *)(cal + idx);
+                dataByte = *((byte *)cal + idx);
                 IEE1_SetByte(IEE1_AREA_START + idx, dataByte);
                 idx++;
             }
@@ -58,7 +61,10 @@ void CalDataStore(CalData_t *cal, uint8_t update)
         }
     }
 }
-
+void AppInit(CalData_t *cal){
+    signalValue = 0;
+	CalDataLoad(cal);
+}
 uint16_t GetSignalValue(void)
 {
     return signalValue;
@@ -66,12 +72,18 @@ uint16_t GetSignalValue(void)
 void SetSignalValue(uint8_t *rawData, CalData_t *cal)
 {
     uint32_t sum = 0;
+    uint16_t tmpSigVal;
     uint8_t i;
-    uint8_t len = cal->offset/8;
+    uint8_t len = cal->offset / 8;
     for (i = 0; i <= len; i++)
     {
-            uint8_t tmp = *(rawData + i) & cal->bitmask[i];
-            sum += tmp << ((len-i) * 8);
+        uint8_t tmp = *(rawData + i) & cal->bitmask[i];
+        sum += tmp << ((len - i) * 8);
     }
-    signalValue = (uint16_t)sum>>(cal->offset-len*8);
+    tmpSigVal = (uint16_t)sum >> (cal->offset - len * 8);
+    if(tmpSigVal >= cal->signal_max)
+    	tmpSigVal = cal->signal_max;
+    if(tmpSigVal <= cal->signal_min)
+    	tmpSigVal = cal->signal_min;
+    signalValue =  tmpSigVal;
 }

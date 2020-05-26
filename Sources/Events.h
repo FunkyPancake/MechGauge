@@ -40,6 +40,7 @@
 #include "IEE1.h"
 #include "Vrti.h"
 #include "Vtim0ch0.h"
+#include "Vssd0.h"
 
 #pragma CODE_SEG DEFAULT
 

@@ -5,7 +5,7 @@
 **     Processor   : MC9S12ZVH128VLL
 **     Version     : Component 01.065, Driver 02.08, CPU db: 3.00.000
 **     Compiler    : CodeWarrior HCS12Z C Compiler
-**     Date/Time   : 2019-12-30, 02:19, # CodeGen: 22
+**     Date/Time   : 2020-05-26, 17:51, # CodeGen: 24
 **     Abstract    :
 **         This component "MC9S12ZVH128_100" implements properties, methods,
 **         and events of the CPU.
@@ -61,6 +61,7 @@
 #include "IEE1.h"
 #include "Vrti.h"
 #include "Vtim0ch0.h"
+#include "Vssd0.h"
 
 /* ISR prototype */
 typedef void (*const tIsrFunc)(void);
@@ -100,7 +101,7 @@ const InterruptTableEntry _InterruptVectorTable[123] @0x00FFFE10U = { /* Interru
   _VECTOR(Cpu_Interrupt),               /* 0x1A  0x00FFFE68   1   ivVssd3              unused by PE */
   _VECTOR(Cpu_Interrupt),               /* 0x1B  0x00FFFE6C   1   ivVssd2              unused by PE */
   _VECTOR(Cpu_Interrupt),               /* 0x1C  0x00FFFE70   1   ivVssd1              unused by PE */
-  _VECTOR(Cpu_Interrupt),               /* 0x1D  0x00FFFE74   1   ivVssd0              unused by PE */
+  _VECTOR(SSD0Isr),                     /* 0x1D  0x00FFFE74   4   ivVssd0              used by PE */
   _VECTOR(Cpu_Interrupt),               /* 0x1E  0x00FFFE78   1   ivVmctimovf          unused by PE */
   _VECTOR(Cpu_Interrupt),               /* 0x1F  0x00FFFE7C   1   ivVReserved96        unused by PE */
   _VECTOR(Cpu_Interrupt),               /* 0x20  0x00FFFE80   1   ivVReserved95        unused by PE */

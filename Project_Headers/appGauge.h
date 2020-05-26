@@ -16,6 +16,7 @@ typedef struct
 } CalData_t;
 void CalDataStore(CalData_t *cal, uint8_t update);
 void CalDataLoad(CalData_t *cal);
+void AppInit(CalData_t *cal);
 void SetSignalValue(uint8_t *rawData, CalData_t *cal);
 uint16_t GetSignalValue(void);
 #endif /*APP_GAUGE_H_*/

@@ -35,6 +35,7 @@
 #include "IEE1.h"
 #include "Vrti.h"
 #include "Vtim0ch0.h"
+#include "Vssd0.h"
 /* Include shared modules, which are used for whole project */
 #include "PE_Types.h"
 #include "PE_Error.h"
@@ -61,7 +62,7 @@ void main(void)
   /* For example: for(;;) { } */
 
    
-//  SSD_Init();
+  SSD_Init();
   MC_Init();
   Clock_Init();
   InitTask();
